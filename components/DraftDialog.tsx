@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X, Upload, FileText, Image as ImageIcon, Sparkles, Loader2, PenTool, Mail, Share2, Lightbulb } from 'lucide-react';
+import { X, Upload, FileText, Image as ImageIcon, Sparkles, Loader2, PenTool, Mail, Share2, Lightbulb, Newspaper, Globe, Cpu, BookOpen, Film, Feather, Terminal } from 'lucide-react';
 import { FileAttachment } from '../types';
 import { PROMPT_TEMPLATES, SUGGESTED_PROMPTS } from '../constants';
 
@@ -51,6 +51,13 @@ export const DraftDialog: React.FC<DraftDialogProps> = ({ isOpen, onClose, onSub
       case 'PenTool': return <PenTool className="w-4 h-4" />;
       case 'Mail': return <Mail className="w-4 h-4" />;
       case 'Share2': return <Share2 className="w-4 h-4" />;
+      case 'Newspaper': return <Newspaper className="w-4 h-4" />;
+      case 'Globe': return <Globe className="w-4 h-4" />;
+      case 'Cpu': return <Cpu className="w-4 h-4" />;
+      case 'BookOpen': return <BookOpen className="w-4 h-4" />;
+      case 'Film': return <Film className="w-4 h-4" />;
+      case 'Feather': return <Feather className="w-4 h-4" />;
+      case 'Terminal': return <Terminal className="w-4 h-4" />;
       default: return <FileText className="w-4 h-4" />;
     }
   };

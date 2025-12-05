@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { Bold, Italic, List, ListOrdered, Heading1, Heading2, Quote, Sparkles } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Bold, Italic, List, ListOrdered, Heading1, Heading2, Quote, Sparkles, Hash } from 'lucide-react';
 import { PLACEHOLDER_TEXT } from '../constants';
 
 interface RichEditorProps {
@@ -19,6 +19,7 @@ export const RichEditor: React.FC<RichEditorProps> = ({
 }) => {
   // Use a ref to track if the last change was internal to avoid cursor jumps
   const isInternalChange = useRef(false);
+  const [showLineNumbers, setShowLineNumbers] = useState(false);
 
   useEffect(() => {
     if (editorRef.current && !isInternalChange.current) {
@@ -66,11 +67,53 @@ export const RichEditor: React.FC<RichEditorProps> = ({
 
   return (
     <div className="relative w-full max-w-3xl flex flex-col items-center">
+      <style>{`
+        .with-line-numbers {
+          counter-reset: line-counter;
+        }
+        .with-line-numbers p,
+        .with-line-numbers h1,
+        .with-line-numbers h2,
+        .with-line-numbers h3,
+        .with-line-numbers h4,
+        .with-line-numbers blockquote,
+        .with-line-numbers li,
+        .with-line-numbers div:not([data-ignore]) { 
+            counter-increment: line-counter;
+            position: relative;
+        }
+        .with-line-numbers p::before,
+        .with-line-numbers h1::before,
+        .with-line-numbers h2::before,
+        .with-line-numbers h3::before,
+        .with-line-numbers h4::before,
+        .with-line-numbers blockquote::before,
+        .with-line-numbers li::before,
+        .with-line-numbers div:not([data-ignore])::before {
+            content: counter(line-counter);
+            position: absolute;
+            left: -3.5rem; /* Gutter width inside the padding */
+            width: 2.5rem;
+            text-align: right;
+            color: #cbd5e1;
+            font-size: 0.75rem;
+            line-height: inherit;
+            font-family: monospace;
+            user-select: none;
+            pointer-events: none;
+            font-variant-numeric: tabular-nums;
+        }
+        /* Adjust for list indentation if needed, though simple absolute works for general block numbering */
+        .with-line-numbers li::before {
+             left: -4.5rem; /* Push back further for indented lists */
+        }
+      `}</style>
+
       {/* Floating Toolbar */}
       <div 
         role="toolbar" 
         aria-label="Text formatting options"
-        className="sticky top-0 z-30 mb-6 px-4 py-2 bg-white/80 backdrop-blur-md border border-gray-200 rounded-full shadow-sm flex items-center gap-1 transition-all"
+        className="sticky top-0 z-30 mb-6 px-4 py-2 bg-white/80 backdrop-blur-md border border-gray-200 rounded-full shadow-sm flex items-center gap-1 transition-all no-print"
       >
         <ToolbarButton 
             icon={<Heading1 className="w-4 h-4" />} 
@@ -113,6 +156,13 @@ export const RichEditor: React.FC<RichEditorProps> = ({
             label="Numbered List"
             shortcut="Ctrl+Shift+7"
         />
+        <div role="separator" className="w-px h-4 bg-gray-200 mx-1" aria-hidden="true" />
+        <ToolbarButton 
+            icon={<Hash className="w-4 h-4" />} 
+            onClick={() => setShowLineNumbers(!showLineNumbers)} 
+            label="Toggle Line Numbers"
+            active={showLineNumbers}
+        />
       </div>
 
       <div className="relative w-full group">
@@ -123,7 +173,16 @@ export const RichEditor: React.FC<RichEditorProps> = ({
             onMouseUp={checkSelection}
             onKeyUp={checkSelection}
             onBlur={checkSelection}
-            className="w-full min-h-[calc(100vh-300px)] outline-none text-lg leading-relaxed text-slate-700 font-serif selection:bg-purple-100 selection:text-purple-900 empty:before:content-[attr(data-placeholder)] empty:before:text-slate-300 cursor-text prose prose-slate max-w-none prose-headings:font-serif prose-h1:text-4xl prose-h1:mb-4 prose-h2:text-2xl prose-h2:mt-6 prose-p:my-3 prose-blockquote:border-l-4 prose-blockquote:border-purple-300 prose-blockquote:pl-4 prose-blockquote:italic"
+            className={`
+                w-full min-h-[calc(100vh-300px)] outline-none text-lg leading-relaxed text-slate-700 font-serif 
+                selection:bg-purple-100 selection:text-purple-900 
+                empty:before:content-[attr(data-placeholder)] empty:before:text-slate-300 
+                cursor-text prose prose-slate max-w-none 
+                prose-headings:font-serif prose-h1:text-4xl prose-h1:mb-4 prose-h2:text-2xl prose-h2:mt-6 
+                prose-p:my-3 prose-blockquote:border-l-4 prose-blockquote:border-purple-300 prose-blockquote:pl-4 prose-blockquote:italic
+                transition-all duration-300
+                ${showLineNumbers ? 'with-line-numbers pl-14 sm:pl-16' : ''}
+            `}
             data-placeholder={PLACEHOLDER_TEXT}
             spellCheck={false}
             role="textbox"
@@ -133,7 +192,7 @@ export const RichEditor: React.FC<RichEditorProps> = ({
         
         {/* Empty State Prompt (Only show if truly empty) */}
         {!content && !isGenerating && (
-            <div className="absolute top-1/3 left-1/2 -translate-x-1/2 text-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100" aria-hidden="true">
+            <div className="absolute top-1/3 left-1/2 -translate-x-1/2 text-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100 no-print" aria-hidden="true">
                     <div className="inline-flex items-center gap-2 text-slate-300 text-sm mb-2">
                     <Sparkles className="w-4 h-4" />
                     <span>Pro Tip</span>
@@ -146,15 +205,19 @@ export const RichEditor: React.FC<RichEditorProps> = ({
   );
 };
 
-const ToolbarButton: React.FC<{ icon: React.ReactNode; onClick: () => void; label: string; shortcut?: string }> = ({ icon, onClick, label, shortcut }) => (
+const ToolbarButton: React.FC<{ icon: React.ReactNode; onClick: () => void; label: string; shortcut?: string; active?: boolean }> = ({ icon, onClick, label, shortcut, active }) => (
   <button 
     type="button"
     onMouseDown={(e) => e.preventDefault()} // Prevent focus loss for mouse users
     onClick={onClick}
-    className="p-2 text-slate-500 hover:text-purple-600 hover:bg-purple-50 focus:bg-purple-50 focus:text-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500/50 rounded-full transition-colors"
+    className={`
+        p-2 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500/50
+        ${active ? 'bg-purple-100 text-purple-700' : 'text-slate-500 hover:text-purple-600 hover:bg-purple-50'}
+    `}
     title={shortcut ? `${label} (${shortcut})` : label}
     aria-label={label}
     aria-keyshortcuts={shortcut}
+    aria-pressed={active}
   >
     {icon}
   </button>

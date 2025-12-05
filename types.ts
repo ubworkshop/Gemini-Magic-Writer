@@ -1,8 +1,16 @@
+
 export interface DocumentState {
   id: string;
   title: string;
   content: string;
   lastModified: Date;
+}
+
+export interface DocumentMetadata {
+  id: string;
+  title: string;
+  lastModified: string;
+  preview: string;
 }
 
 export enum RewriteMode {

@@ -38,6 +38,45 @@
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
       }
+
+      @media print {
+        @page {
+          margin: 2cm;
+        }
+        
+        body, html, #root {
+          height: auto !important;
+          overflow: visible !important;
+          background-color: white !important;
+        }
+        
+        /* Utility class to hide elements during print */
+        .no-print {
+          display: none !important;
+        }
+
+        /* Ensure main content takes full width and height */
+        main {
+          height: auto !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: visible !important;
+        }
+
+        /* Editor specific overrides for print */
+        [contenteditable] {
+          min-height: 0 !important;
+          padding: 0 !important;
+        }
+        
+        /* Ensure text is black */
+        * {
+          color: black !important;
+          text-shadow: none !important;
+        }
+      }
     </style>
   <script type="importmap">
 {
