@@ -148,7 +148,10 @@ export const generateDraftStream = async (
   try {
     const responseStream = await ai.models.generateContentStream({
       model,
-      contents: { parts },
+      contents: [{
+        role: 'user',
+        parts: parts
+      }],
       config: {
         temperature: settings.temperature,
       }
@@ -207,7 +210,10 @@ export const rewriteSelectionStream = async (
   try {
     const responseStream = await ai.models.generateContentStream({
       model,
-      contents: prompt,
+      contents: [{
+        role: 'user',
+        parts: [{ text: prompt }]
+      }],
       config: {
         temperature: settings.temperature,
       }
@@ -216,6 +222,67 @@ export const rewriteSelectionStream = async (
     for await (const chunk of responseStream) {
       if (chunk.text) {
         onChunk(chunk.text);
+      }
+    }
+  } catch (error) {
+    handleGeminiError(error);
+  }
+};
+
+// Translate content to target language
+export const translateContentStream = async (
+  content: string,
+  targetLanguage: string,
+  settings: AppSettings,
+  onChunk: (text: string) => void
+) => {
+  if (!content) return;
+
+  const prompt = `
+  You are a professional translator. 
+  Translate the following HTML content into professional, high-quality ${targetLanguage}.
+  
+  Rules:
+  1. Maintain the original HTML structure and tags (h1, p, ul, etc.) exactly so it matches the visual layout of the original.
+  2. Only translate the visible text content.
+  3. Ensure the tone is appropriate for the context (professional/native).
+  4. Return ONLY the translated HTML string. 
+  5. Do NOT use markdown code blocks (e.g., \`\`\`html). Just return raw HTML.
+
+  Content to translate:
+  """
+  ${content}
+  """
+  `;
+
+  if (settings.provider !== 'google') {
+      const messages = [
+          { role: 'system', content: `You are a professional translator. Translate to ${targetLanguage}. Maintain HTML structure.` },
+          { role: 'user', content: prompt }
+      ];
+      return generateOpenAICompatibleStream(messages, settings, onChunk);
+  }
+
+  const ai = getGoogleClient();
+  const model = settings.model;
+
+  try {
+    const responseStream = await ai.models.generateContentStream({
+      model,
+      contents: [{
+        role: 'user',
+        parts: [{ text: prompt }]
+      }],
+      config: {
+        temperature: 0.3, // Lower temperature for more accurate translation
+      }
+    });
+
+    for await (const chunk of responseStream) {
+      if (chunk.text) {
+        // Strip markdown code blocks if the model insists on adding them
+        const cleanChunk = chunk.text.replace(/^```html\s*/i, '').replace(/```$/, '');
+        onChunk(cleanChunk);
       }
     }
   } catch (error) {
@@ -235,6 +302,8 @@ const handleGeminiError = (error: any) => {
             message = "Rate limit exceeded. Try again later.";
         } else if (msg.includes("safety") || msg.includes("blocked")) {
             message = "Generation blocked due to safety guidelines.";
+        } else if (msg.includes("not found") || msg.includes("404")) {
+            message = "Model endpoint not found or request ambiguous. Please check Settings > Model.";
         } else {
              message = `Error: ${error.message}`;
         }

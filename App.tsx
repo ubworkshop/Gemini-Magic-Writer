@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { 
   Plus, 
@@ -15,7 +14,11 @@ import {
   FileCode,
   Printer,
   ChevronDown,
-  Trash2
+  Trash2,
+  Languages,
+  X,
+  Globe,
+  Copy
 } from 'lucide-react';
 import { DraftDialog } from './components/DraftDialog';
 import { MagicMenu } from './components/MagicMenu';
@@ -23,7 +26,7 @@ import { Tooltip } from './components/Tooltip';
 import { RichEditor } from './components/RichEditor';
 import { SettingsDialog } from './components/SettingsDialog';
 import { RewriteMode, FileAttachment, AppSettings, DocumentMetadata } from './types';
-import { generateDraftStream, rewriteSelectionStream } from './services/geminiService';
+import { generateDraftStream, rewriteSelectionStream, translateContentStream } from './services/geminiService';
 import { DEFAULT_SETTINGS } from './constants';
 import { htmlToMarkdown } from './utils/converters';
 
@@ -48,6 +51,9 @@ const App: React.FC = () => {
   const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const [isExportMenuOpen, setExportMenuOpen] = useState(false);
+  
+  // Translation State
+  const [translationResult, setTranslationResult] = useState<{ language: string; content: string } | null>(null);
   
   // Magic Menu State
   const [selectedText, setSelectedText] = useState('');
@@ -215,6 +221,7 @@ const App: React.FC = () => {
       setTitle('');
       setContent('');
       lastSavedRef.current = { id: newId, title: '', content: '' };
+      setTranslationResult(null); // Clear translation on new doc
       // Note: It will be added to recents list only after first auto-save or edit
   };
 
@@ -234,8 +241,7 @@ const App: React.FC = () => {
               setTitle(parsed.title);
               setContent(parsed.content);
               lastSavedRef.current = { id: parsed.id, title: parsed.title, content: parsed.content };
-              
-              // Mobile/Sidebar UX: on mobile maybe close sidebar, but keeping open for now
+              setTranslationResult(null); // Clear translation on doc switch
           } else {
               console.error("Document data not found for id:", id);
               // Clean up ghost entry
@@ -444,6 +450,37 @@ const App: React.FC = () => {
     }
   };
 
+  // AI: Translation
+  const handleTranslate = async (language: 'Chinese' | 'Japanese') => {
+      const originalContent = editorRef.current?.innerHTML || content;
+      if (!originalContent.trim()) return;
+
+      // Initialize translation panel
+      setTranslationResult({ language, content: '' });
+      setIsGenerating(true);
+      
+      try {
+          await translateContentStream(originalContent, language, appSettings, (chunk) => {
+              // Update local state for sidebar stream
+              setTranslationResult(prev => prev ? { ...prev, content: prev.content + chunk } : { language, content: chunk });
+          });
+      } catch (e) {
+          console.error("Translation failed", e);
+          alert("Translation failed. Please check your settings.");
+          setTranslationResult(null); // Close on error
+      } finally {
+          setIsGenerating(false);
+      }
+  };
+
+  const copyTranslation = () => {
+    if (translationResult?.content) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = translationResult.content;
+        navigator.clipboard.writeText(tempDiv.innerText);
+    }
+  };
+
   // Sidebar Toggle
   const toggleSidebar = () => setSidebarOpen(!isSidebarOpen);
 
@@ -557,7 +594,7 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Main Content Area (Flex container for split view) */}
       <div className="flex-1 flex flex-col h-full relative min-w-0 bg-white">
         
         {/* Top Bar */}
@@ -569,7 +606,7 @@ const App: React.FC = () => {
                 <div className="h-4 w-px bg-gray-200 mx-1 shrink-0"></div>
                 <div className="flex flex-col min-w-0">
                     <span className="text-sm text-slate-800 font-medium leading-none truncate block">
-                        {isGenerating ? 'Generating Draft...' : (title || 'Untitled Document')}
+                        {isGenerating && !translationResult ? 'Generating Draft...' : (title || 'Untitled Document')}
                     </span>
                     <div className="mt-1">
                         {renderSaveStatus()}
@@ -578,6 +615,29 @@ const App: React.FC = () => {
             </div>
             
             <div className="flex items-center gap-2 shrink-0">
+                {/* Translation Buttons */}
+                <div className="flex items-center bg-slate-100 rounded-full p-0.5 mr-2">
+                    <Tooltip content="Translate to Chinese">
+                        <button 
+                            onClick={() => handleTranslate('Chinese')}
+                            disabled={isGenerating}
+                            className={`px-3 py-1.5 text-xs font-bold rounded-full transition-all disabled:opacity-50 ${translationResult?.language === 'Chinese' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500 hover:text-purple-700 hover:bg-white'}`}
+                        >
+                            CN
+                        </button>
+                    </Tooltip>
+                    <div className="w-px h-3 bg-gray-300 mx-0.5"></div>
+                    <Tooltip content="Translate to Japanese">
+                        <button 
+                            onClick={() => handleTranslate('Japanese')}
+                            disabled={isGenerating}
+                            className={`px-3 py-1.5 text-xs font-bold rounded-full transition-all disabled:opacity-50 ${translationResult?.language === 'Japanese' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500 hover:text-purple-700 hover:bg-white'}`}
+                        >
+                            JP
+                        </button>
+                    </Tooltip>
+                </div>
+
                 <div className="relative" ref={exportMenuRef}>
                     <Tooltip content="Export">
                         <button 
@@ -624,28 +684,72 @@ const App: React.FC = () => {
             </div>
         </header>
 
-        {/* Editor Area */}
-        <main className="flex-1 overflow-y-auto relative flex justify-center bg-white">
-            <div className="w-full max-w-3xl px-8 py-12 pb-32 print-content">
-                 {/* Title Input */}
-                 <input 
-                    type="text" 
-                    placeholder="Document Title" 
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="w-full text-4xl font-serif font-bold text-slate-900 placeholder:text-slate-300 border-none focus:ring-0 focus:outline-none bg-transparent mb-6"
-                 />
-                 
-                {/* Rich Editor */}
-                <RichEditor 
-                    editorRef={editorRef}
-                    content={content}
-                    onChange={setContent}
-                    onSelectionChange={handleSelectionChange}
-                    isGenerating={isGenerating}
-                />
-            </div>
-        </main>
+        <div className="flex-1 flex overflow-hidden relative">
+            {/* Editor Area */}
+            <main className="flex-1 overflow-y-auto flex justify-center bg-white scroll-smooth relative">
+                <div className="w-full max-w-3xl px-8 py-12 pb-32 print-content">
+                    {/* Title Input */}
+                    <input 
+                        type="text" 
+                        placeholder="Document Title" 
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        className="w-full text-4xl font-serif font-bold text-slate-900 placeholder:text-slate-300 border-none focus:ring-0 focus:outline-none bg-transparent mb-6"
+                    />
+                    
+                    {/* Rich Editor */}
+                    <RichEditor 
+                        editorRef={editorRef}
+                        content={content}
+                        onChange={setContent}
+                        onSelectionChange={handleSelectionChange}
+                        isGenerating={isGenerating && !translationResult} // Only show generating state if not translating to sidebar
+                    />
+                </div>
+            </main>
+
+            {/* Translation Side Panel */}
+            {translationResult && (
+                <div className="w-[45%] min-w-[320px] border-l border-gray-200 bg-slate-50 flex flex-col h-full shadow-inner z-10 transition-all duration-300 ease-in-out">
+                    <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white sticky top-0 z-10">
+                        <div className="flex items-center gap-2">
+                            <Globe className="w-4 h-4 text-purple-600"/>
+                            <h3 className="font-semibold text-slate-800 text-sm">
+                                {translationResult.language} Translation
+                            </h3>
+                            {isGenerating && <Loader2 className="w-3 h-3 text-slate-400 animate-spin" />}
+                        </div>
+                        <div className="flex items-center gap-1">
+                             <Tooltip content="Copy Text">
+                                <button 
+                                    onClick={copyTranslation}
+                                    className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-colors"
+                                >
+                                    <Copy className="w-4 h-4" />
+                                </button>
+                             </Tooltip>
+                            <button 
+                                onClick={() => setTranslationResult(null)}
+                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div className="flex-1 overflow-y-auto p-8 prose prose-slate prose-sm max-w-none prose-headings:font-serif prose-headings:text-slate-800">
+                        {translationResult.content ? (
+                            <div dangerouslySetInnerHTML={{__html: translationResult.content}} />
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-slate-400 space-y-3">
+                                <Loader2 className="w-8 h-8 animate-spin text-purple-300" />
+                                <span className="text-xs">Translating content...</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
 
         {/* Magic Menu (Floating) */}
         <div className="no-print">

@@ -5,7 +5,7 @@ export const PLACEHOLDER_TEXT = "Start writing or press the sparkles icon to gen
 
 export const DEFAULT_SETTINGS: AppSettings = {
   provider: 'google',
-  model: 'gemini-3-pro-preview',
+  model: 'gemini-2.5-flash', // Changed default to Flash for stability
   temperature: 0.7,
   customApiKey: '',
   customBaseUrl: ''
@@ -20,8 +20,8 @@ export const AI_PROVIDERS = [
 
 export const MODEL_OPTIONS = {
   google: [
-    { id: 'gemini-3-pro-preview', name: 'Gemini 3.0 Pro (Best for Reasoning)' },
-    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Fastest)' },
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Fast & Stable)' },
+    { id: 'gemini-3-pro-preview', name: 'Gemini 3.0 Pro (Reasoning)' },
     { id: 'gemini-2.5-flash-lite-latest', name: 'Gemini 2.5 Flash Lite (Cost Effective)' },
   ],
   openai: [
